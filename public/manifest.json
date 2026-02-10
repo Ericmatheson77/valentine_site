@@ -1,0 +1,17 @@
+{
+  "name": "Memory Jar - Our Love Story",
+  "short_name": "Memory Jar",
+  "description": "A daily memory jar counting down to forever",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF1F2",
+  "theme_color": "#FB7185",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
