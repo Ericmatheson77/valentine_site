@@ -17,6 +17,7 @@ const s3 = new S3Client({
 const BUCKET = process.env.S3_BUCKET_NAME || "";
 const REGION = process.env.AWS_REGION || "us-west-1";
 const PROCESSED_PREFIX = process.env.S3_PROCESSED_PREFIX ?? "processed/";
+const INDEX_KEY = `${PROCESSED_PREFIX.replace(/\/?$/, "/")}date-media-index.json`;
 const MEDIA_EXTS = [
   // Web-native images
   ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg",
@@ -94,6 +95,37 @@ async function getExifDate(key: string): Promise<string | null> {
   }
 }
 
+/**
+ * Load the precomputed date → media index JSON from S3.
+ * Shape: { "YYYY-MM-DD": ["https://bucket.s3.region.amazonaws.com/processed/...", ...], ... }
+ */
+async function loadProcessedIndex(): Promise<Record<string, string[]>> {
+  const res = await s3.send(
+    new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: INDEX_KEY,
+    })
+  );
+
+  if (!res.Body) {
+    throw new Error("Empty index object body");
+  }
+
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
+  const buffer = Buffer.concat(chunks);
+  const text = buffer.toString("utf-8");
+
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid index JSON");
+  }
+
+  return parsed as Record<string, string[]>;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -115,6 +147,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const source = (req.query.source as string) || "processed";
 
   try {
+    // Fast path for processed media: use the precomputed date-media index if available.
+    if (source === "processed") {
+      try {
+        const index = await loadProcessedIndex();
+        const photos: {
+          key: string;
+          url: string;
+          date: string | null;
+          webDisplayable: boolean;
+          mediaType: "image" | "video";
+        }[] = [];
+
+        for (const [date, urls] of Object.entries(index)) {
+          for (const url of urls) {
+            try {
+              const urlObj = new URL(url);
+              // Remove leading "/" and decode each path segment
+              const path = urlObj.pathname.replace(/^\/+/, "");
+              const key = decodeURIComponent(path);
+              const { type: mediaType, webDisplayable } = classifyMedia(key);
+
+              photos.push({
+                key,
+                url,
+                date,
+                webDisplayable,
+                mediaType,
+              });
+            } catch {
+              // Skip malformed URLs
+              continue;
+            }
+          }
+        }
+
+        // Sort: dated first (by date), then undated (by key)
+        photos.sort((a, b) => {
+          if (a.date && b.date) return a.date.localeCompare(b.date);
+          if (a.date && !b.date) return -1;
+          if (!a.date && b.date) return 1;
+          return a.key.localeCompare(b.key);
+        });
+
+        res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=60");
+        return res.status(200).json(photos);
+      } catch (e) {
+        // If the index is missing or invalid, fall back to the S3+EXIF scan below.
+        console.warn("Failed to load processed index; falling back to S3 scan:", e);
+      }
+    }
+
     // 1. List media keys
     const mediaKeys: string[] = [];
     let continuationToken: string | undefined;
