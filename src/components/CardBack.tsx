@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MemoryEntry } from "../types";
 import Gallery from "./Gallery";
 import { Quote } from "lucide-react";
@@ -15,11 +15,15 @@ function isVideoUrl(url: string): boolean {
 }
 
 export default function CardBack({ entry, compact = false }: CardBackProps) {
+  const isText = entry.type === "text";
+
   return (
-    <div className="w-full h-full bg-white rounded-2xl p-4 flex flex-col items-center justify-center overflow-hidden shadow-lg shadow-rose-200/40 border border-rose-100/50">
-      {entry.type === "text" && (
-        <TextContent text={entry.text} compact={compact} />
-      )}
+    <div
+      className={`w-full h-full bg-white rounded-2xl p-4 flex flex-col items-center ${
+        isText ? "justify-start" : "justify-center"
+      } overflow-hidden shadow-lg shadow-rose-200/40 border border-rose-100/50`}
+    >
+      {isText && <TextContent text={entry.text} compact={compact} />}
       {entry.type === "photo" && (
         <PhotoContent
           mediaUrl={entry.media?.[0] || ""}
@@ -112,6 +116,8 @@ function CaptionWithToggle({
   compact: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+   const [canToggle, setCanToggle] = useState(false);
+   const textRef = useRef<HTMLParagraphElement | null>(null);
 
   // For compact cards, always show a short, clamped preview.
   if (compact) {
@@ -121,19 +127,25 @@ function CaptionWithToggle({
       </p>
     );
   }
-
-  const shouldShowToggle = caption.length > 140;
+ 
+   useEffect(() => {
+     const el = textRef.current;
+     if (!el) return;
+     // If the text is taller than its visible box, allow toggling
+     setCanToggle(el.scrollHeight > el.clientHeight + 1);
+   }, [caption]);
 
   return (
     <div className="flex flex-col items-center gap-1 px-2 mt-1">
       <p
+        ref={textRef}
         className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${
           expanded ? "" : "line-clamp-3"
         }`}
       >
         {caption}
       </p>
-      {shouldShowToggle && (
+      {canToggle && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}

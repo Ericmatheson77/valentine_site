@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -165,6 +165,8 @@ function GalleryCaption({
   compact: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [canToggle, setCanToggle] = useState(false);
+  const textRef = useRef<HTMLParagraphElement | null>(null);
 
   if (compact) {
     return (
@@ -173,19 +175,24 @@ function GalleryCaption({
       </p>
     );
   }
-
-  const shouldShowToggle = caption.length > 140;
+ 
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    setCanToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [caption]);
 
   return (
     <div className="flex flex-col items-center gap-1 px-2">
       <p
+        ref={textRef}
         className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${
           expanded ? "" : "line-clamp-3"
         }`}
       >
         {caption}
       </p>
-      {shouldShowToggle && (
+      {canToggle && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
