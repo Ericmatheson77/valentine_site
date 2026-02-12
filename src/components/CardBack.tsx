@@ -7,6 +7,12 @@ interface CardBackProps {
   compact?: boolean;
 }
 
+// Very small helper – we infer videos by file extension
+function isVideoUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return lower.endsWith(".mp4") || lower.endsWith(".webm");
+}
+
 export default function CardBack({ entry, compact = false }: CardBackProps) {
   return (
     <div className="w-full h-full bg-white rounded-2xl p-4 flex flex-col items-center justify-center overflow-hidden shadow-lg shadow-rose-200/40 border border-rose-100/50">
@@ -15,7 +21,7 @@ export default function CardBack({ entry, compact = false }: CardBackProps) {
       )}
       {entry.type === "photo" && (
         <PhotoContent
-          imageUrl={entry.media?.[0] || ""}
+          mediaUrl={entry.media?.[0] || ""}
           caption={entry.text}
           compact={compact}
         />
@@ -48,14 +54,16 @@ function TextContent({ text, compact }: { text: string; compact: boolean }) {
 }
 
 function PhotoContent({
-  imageUrl,
+  mediaUrl,
   caption,
   compact,
 }: {
-  imageUrl: string;
+  mediaUrl: string;
   caption: string;
   compact: boolean;
 }) {
+  const isVideo = isVideoUrl(mediaUrl);
+
   return (
     <div className="flex flex-col items-center gap-2 w-full overflow-hidden">
       {/* Polaroid-style frame */}
@@ -64,12 +72,22 @@ function PhotoContent({
           compact ? "p-1.5 pb-4 max-w-full" : "p-3 pb-12 max-w-[280px]"
         }`}
       >
-        <img
-          src={imageUrl}
-          alt="Memory"
-          className="w-full aspect-[3/4] object-cover rounded-sm"
-          draggable={false}
-        />
+        {isVideo ? (
+          <video
+            src={mediaUrl}
+            className="max-h-[320px] w-full h-auto mx-auto object-contain rounded-sm"
+            controls
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img
+            src={mediaUrl}
+            alt="Memory"
+            className="max-h-[320px] w-full h-auto mx-auto object-contain rounded-sm"
+            draggable={false}
+          />
+        )}
       </div>
       <p
         className={`text-rose-500/80 text-center font-medium italic px-1 ${

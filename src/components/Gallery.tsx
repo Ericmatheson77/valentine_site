@@ -10,6 +10,12 @@ interface GalleryProps {
 
 const swipeConfidenceThreshold = 50;
 
+// Match CardBack logic – infer videos by extension
+function isVideoUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return lower.endsWith(".mp4") || lower.endsWith(".webm");
+}
+
 export default function Gallery({ images, caption, compact = false }: GalleryProps) {
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -53,28 +59,45 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
 
   if (images.length === 0) return null;
 
+  const currentUrl = images[current];
+  const isVideo = isVideoUrl(currentUrl);
+
   return (
     <div className={`w-full flex flex-col items-center ${compact ? "gap-1.5" : "gap-3"}`}>
-      {/* Image container */}
+      {/* Media container */}
       <div
         className="relative w-full aspect-[3/4] overflow-hidden rounded-xl bg-white shadow-inner"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         <AnimatePresence initial={false} custom={direction} mode="popLayout">
-          <motion.img
+          <motion.div
             key={current}
-            src={images[current]}
-            alt={`Memory photo ${current + 1}`}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full flex items-center justify-center"
             custom={direction}
             variants={variants}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            draggable={false}
-          />
+          >
+            {isVideo ? (
+              <video
+                src={currentUrl}
+                className="max-h-full max-w-full w-auto h-auto object-contain"
+                controls
+                playsInline
+                preload="metadata"
+              />
+            ) : (
+              <img
+                src={currentUrl}
+                alt={`Memory media ${current + 1}`}
+                className="max-h-full max-w-full w-auto h-auto object-contain"
+                draggable={false}
+              />
+            )}
+          </motion.div>
         </AnimatePresence>
 
         {/* Navigation arrows (visible on hover / larger screens, hidden in compact) */}
@@ -86,7 +109,7 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
                 paginate(-1);
               }}
               className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center shadow-md opacity-0 hover:opacity-100 transition-opacity md:opacity-60"
-              aria-label="Previous photo"
+              aria-label="Previous media"
             >
               <ChevronLeft className="w-4 h-4 text-rose-500" />
             </button>
@@ -96,7 +119,7 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
                 paginate(1);
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center shadow-md opacity-0 hover:opacity-100 transition-opacity md:opacity-60"
-              aria-label="Next photo"
+              aria-label="Next media"
             >
               <ChevronRight className="w-4 h-4 text-rose-500" />
             </button>
@@ -122,7 +145,7 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
                   ? `bg-rose-400 ${compact ? "w-2.5" : "w-4"}`
                   : "bg-rose-200 hover:bg-rose-300"
               }`}
-              aria-label={`Go to photo ${i + 1}`}
+              aria-label={`Go to media ${i + 1}`}
             />
           ))}
         </div>

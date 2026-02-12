@@ -37,7 +37,8 @@ export default function CountdownTimer({
   targetDate,
   label = "Forever",
 }: CountdownTimerProps) {
-  const target = new Date(`${targetDate}T00:00:00`);
+  // May 29th 11:00 AM MDT = 17:00 UTC (MDT is UTC-6)
+  const target = new Date(`${targetDate}T17:00:00Z`);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft(target));
 
   useEffect(() => {
