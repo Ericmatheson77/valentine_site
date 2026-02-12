@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MemoryEntry } from "../types";
 import Gallery from "./Gallery";
 import { Quote } from "lucide-react";
@@ -38,17 +39,24 @@ export default function CardBack({ entry, compact = false }: CardBackProps) {
 }
 
 function TextContent({ text, compact }: { text: string; compact: boolean }) {
+  if (compact) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-2 py-3 text-center overflow-hidden">
+        <p className="font-display leading-relaxed text-rose-700 italic text-xs line-clamp-6">
+          {text}
+        </p>
+      </div>
+    );
+  }
+
+  // Full-size card: allow long romantic letters/poems with scrolling
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-2 py-3 text-center overflow-hidden">
-      {!compact && <Quote className="w-6 h-6 text-rose-200 rotate-180 shrink-0" />}
-      <p
-        className={`font-display leading-relaxed text-rose-700 italic ${
-          compact ? "text-xs line-clamp-6" : "text-xl"
-        }`}
-      >
+    <div className="flex flex-col items-center justify-center gap-2 px-3 py-4 text-center max-h-full overflow-y-auto">
+      <Quote className="w-6 h-6 text-rose-200 rotate-180 shrink-0" />
+      <p className="font-display leading-relaxed text-rose-700 italic text-base whitespace-pre-line">
         {text}
       </p>
-      {!compact && <Quote className="w-6 h-6 text-rose-200 shrink-0" />}
+      <Quote className="w-6 h-6 text-rose-200 shrink-0" />
     </div>
   );
 }
@@ -89,13 +97,51 @@ function PhotoContent({
           />
         )}
       </div>
+      {caption && (
+        <CaptionWithToggle caption={caption} compact={compact} />
+      )}
+    </div>
+  );
+}
+
+function CaptionWithToggle({
+  caption,
+  compact,
+}: {
+  caption: string;
+  compact: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // For compact cards, always show a short, clamped preview.
+  if (compact) {
+    return (
+      <p className="text-rose-500/80 text-center font-medium italic px-1 text-[10px] line-clamp-2">
+        {caption}
+      </p>
+    );
+  }
+
+  const shouldShowToggle = caption.length > 140;
+
+  return (
+    <div className="flex flex-col items-center gap-1 px-2 mt-1">
       <p
-        className={`text-rose-500/80 text-center font-medium italic px-1 ${
-          compact ? "text-[10px] line-clamp-2" : "text-sm mt-1"
+        className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${
+          expanded ? "" : "line-clamp-3"
         }`}
       >
         {caption}
       </p>
+      {shouldShowToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[11px] text-rose-400 hover:text-rose-500 font-medium underline-offset-2 hover:underline"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
     </div>
   );
 }

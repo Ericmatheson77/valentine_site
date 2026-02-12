@@ -152,14 +152,47 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
       )}
 
       {/* Caption */}
-      {caption && (
-        <p
-          className={`text-rose-500/80 text-center font-medium italic px-1 ${
-            compact ? "text-[10px] line-clamp-2" : "text-sm"
-          }`}
+      {caption && <GalleryCaption caption={caption} compact={compact} />}
+    </div>
+  );
+}
+
+function GalleryCaption({
+  caption,
+  compact,
+}: {
+  caption: string;
+  compact: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (compact) {
+    return (
+      <p className="text-rose-500/80 text-center font-medium italic px-1 text-[10px] line-clamp-2">
+        {caption}
+      </p>
+    );
+  }
+
+  const shouldShowToggle = caption.length > 140;
+
+  return (
+    <div className="flex flex-col items-center gap-1 px-2">
+      <p
+        className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${
+          expanded ? "" : "line-clamp-3"
+        }`}
+      >
+        {caption}
+      </p>
+      {shouldShowToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[11px] text-rose-400 hover:text-rose-500 font-medium underline-offset-2 hover:underline"
         >
-          {caption}
-        </p>
+          {expanded ? "Show less" : "Show more"}
+        </button>
       )}
     </div>
   );

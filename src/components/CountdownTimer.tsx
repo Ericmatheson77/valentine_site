@@ -41,6 +41,14 @@ export default function CountdownTimer({
   const target = new Date(`${targetDate}T17:00:00Z`);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft(target));
 
+  // Local calendar day for controlling when to show the banner
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(now.getDate()).padStart(2, "0")}`;
+  const isTargetDay = todayStr === targetDate;
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft(target));
@@ -55,14 +63,20 @@ export default function CountdownTimer({
     timeLeft.minutes === 0 &&
     timeLeft.seconds === 0;
 
+  // After the target moment has passed and we are no longer on the
+  // wedding day itself, hide the header entirely.
+  if (!isTargetDay && isComplete) {
+    return null;
+  }
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-white/70 border-b border-rose-100 shadow-sm">
       <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-center gap-2">
         <Heart className="w-4 h-4 text-rose-400 fill-rose-400 shrink-0" />
 
-        {isComplete ? (
-          <span className="text-rose-500 font-display text-sm font-semibold tracking-wide">
-            Today is the day!
+        {isTargetDay && isComplete ? (
+          <span className="text-rose-500 font-display text-sm font-semibold tracking-wide text-center">
+            Happy Wedding Day — we&apos;re married!
           </span>
         ) : (
           <div className="flex items-center gap-1 text-sm tracking-wide">

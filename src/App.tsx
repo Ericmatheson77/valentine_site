@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Heart, CalendarHeart, Loader2, Images, X } from "lucide-react";
 import CountdownTimer from "./components/CountdownTimer";
 import MemoryCard, { formatMemoryDate } from "./components/MemoryCard";
+import CardBack from "./components/CardBack";
 import Gallery from "./components/Gallery";
 import { fetchMemories, getToday } from "./data";
 import type { MemoryEntry } from "./types";
@@ -296,7 +297,9 @@ function PastMemoryCard({
         </span>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <MemoryCard entry={memory} compact />
+        <div className="w-full max-w-[200px] aspect-[3/4]">
+          <CardBack entry={memory} compact />
+        </div>
         <ViewAllMediaButton onClick={onViewAll} small />
       </div>
     </motion.div>
