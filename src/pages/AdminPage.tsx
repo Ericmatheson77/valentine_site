@@ -13,6 +13,8 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   X,
 } from "lucide-react";
 import type { MemoryEntry, MemoryType } from "../types";
@@ -197,6 +199,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [deleteFromS3Loading, setDeleteFromS3Loading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDate, setPreviewDate] = useState<string | null>(null);
+  const [memoriesExpanded, setMemoriesExpanded] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(
     null
   );
@@ -816,37 +819,55 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
         {/* ── Existing Entries Overview ──────────────────── */}
         <section>
-          <h3 className="text-sm font-medium text-rose-500 mb-3">
-            All Curated Memories ({memories.length})
-          </h3>
-          {memories.length === 0 ? (
-            <p className="text-xs text-rose-300">No memories yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {memories.map((m) => (
-                <button
-                  key={m.date}
-                  onClick={() => setSelectedDate(m.date)}
-                  className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                    m.date === selectedDate
-                      ? "bg-rose-50 border-rose-300"
-                      : "bg-white border-rose-100 hover:border-rose-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-rose-600">
-                      {formatDateHeading(m.date)}
-                    </span>
-                    <span className="text-xs text-rose-400 bg-rose-50 px-2 py-0.5 rounded-full">
-                      {m.type}
-                    </span>
-                  </div>
-                  <p className="text-xs text-rose-400 mt-1 line-clamp-1 italic">
-                    "{m.text}"
-                  </p>
-                </button>
-              ))}
-            </div>
+          <button
+            onClick={() => setMemoriesExpanded(!memoriesExpanded)}
+            className="flex items-center justify-between w-full text-left mb-3 group"
+          >
+            <h3 className="text-sm font-medium text-rose-500">
+              All Curated Memories ({memories.length})
+            </h3>
+            {memories.length > 0 && (
+              <div className="text-rose-400 group-hover:text-rose-600 transition-colors">
+                {memoriesExpanded ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
+            )}
+          </button>
+          {memoriesExpanded && (
+            <>
+              {memories.length === 0 ? (
+                <p className="text-xs text-rose-300">No memories yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {memories.map((m) => (
+                    <button
+                      key={m.date}
+                      onClick={() => setSelectedDate(m.date)}
+                      className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                        m.date === selectedDate
+                          ? "bg-rose-50 border-rose-300"
+                          : "bg-white border-rose-100 hover:border-rose-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-rose-600">
+                          {formatDateHeading(m.date)}
+                        </span>
+                        <span className="text-xs text-rose-400 bg-rose-50 px-2 py-0.5 rounded-full">
+                          {m.type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-400 mt-1 line-clamp-1 italic">
+                        "{m.text}"
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
 
