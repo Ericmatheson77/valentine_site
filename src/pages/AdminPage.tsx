@@ -764,6 +764,38 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               </button>
             )}
           </div>
+
+          {/* Date switcher below save button */}
+          <div className="flex items-center gap-2 justify-center mt-4 pt-4 border-t border-rose-100">
+            <button
+              onClick={() => {
+                const d = new Date(selectedDate + "T00:00:00");
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+              }}
+              className="shrink-0 w-9 h-9 rounded-lg border border-rose-200 bg-white flex items-center justify-center text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="flex-1 min-w-0 max-w-xs px-4 py-2.5 rounded-xl border border-rose-200 text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent bg-white"
+            />
+            <button
+              onClick={() => {
+                const d = new Date(selectedDate + "T00:00:00");
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+              }}
+              className="shrink-0 w-9 h-9 rounded-lg border border-rose-200 bg-white flex items-center justify-center text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              aria-label="Next day"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </section>
 
         {/* ── Shrink & convert (run locally) ───────────────── */}

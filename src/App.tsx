@@ -50,6 +50,7 @@ function App() {
     loading: false,
     error: null,
   });
+  const [expandedMemory, setExpandedMemory] = useState<MemoryEntry | null>(null);
   const today = getToday();
   // "Story" timeline date: exactly one year ago from today.
   // This controls which day's memory is considered "today's" in the app.
@@ -207,6 +208,7 @@ function App() {
                 <PastMemoryCard
                   key={memory.date}
                   memory={memory}
+                  onOpen={() => setExpandedMemory(memory)}
                   onViewAll={() =>
                     openMediaModalForDate(memory.date, memory.media || [])
                   }
@@ -217,6 +219,19 @@ function App() {
         )}
 
       </main>
+
+      {expandedMemory && (
+        <MemoryDetailModal
+          memory={expandedMemory}
+          onClose={() => setExpandedMemory(null)}
+          onViewAll={() =>
+            openMediaModalForDate(
+              expandedMemory.date,
+              expandedMemory.media || []
+            )
+          }
+        />
+      )}
 
       {mediaModal.open && mediaModal.date && (
         <MediaModal
@@ -280,9 +295,11 @@ function NoMemoryToday() {
 
 function PastMemoryCard({
   memory,
+  onOpen,
   onViewAll,
 }: {
   memory: MemoryEntry;
+  onOpen: () => void;
   onViewAll: () => void;
 }) {
   return (
@@ -297,12 +314,62 @@ function PastMemoryCard({
         </span>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <div className="w-full max-w-[200px] aspect-[3/4]">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="w-full max-w-[200px] aspect-[3/4] rounded-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2"
+          aria-label={`Open memory from ${formatMemoryDate(memory.date)}`}
+        >
           <CardBack entry={memory} compact />
-        </div>
+        </button>
         <ViewAllMediaButton onClick={onViewAll} small />
       </div>
     </motion.div>
+  );
+}
+
+function MemoryDetailModal({
+  memory,
+  onClose,
+  onViewAll,
+}: {
+  memory: MemoryEntry;
+  onClose: () => void;
+  onViewAll: () => void;
+}) {
+  const formattedDate = new Date(memory.date + "T00:00:00").toLocaleDateString(
+    "en-US",
+    { weekday: "long", month: "long", day: "numeric", year: "numeric" }
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-sm flex flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-rose-400 hover:text-rose-600 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <p className="text-white/90 text-sm font-medium text-center">
+          {formattedDate}
+        </p>
+
+        <div className="w-full max-w-sm aspect-[3/4]">
+          <CardBack entry={memory} compact={false} />
+        </div>
+
+        <ViewAllMediaButton onClick={onViewAll} />
+      </div>
+    </div>
   );
 }
 

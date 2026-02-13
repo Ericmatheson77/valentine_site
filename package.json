@@ -10,7 +10,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "convert-media": "tsx scripts/convert-s3-media.ts",
-    "convert-media:dry": "tsx scripts/convert-s3-media.ts --dry-run"
+    "convert-media:dry": "tsx scripts/convert-s3-media.ts --dry-run",
+    "delete-live-mp4": "tsx scripts/delete-live-photo-mp4.ts",
+    "delete-live-mp4:dry": "tsx scripts/delete-live-photo-mp4.ts --dry-run",
+    "build-index": "tsx scripts/build-date-media-index.ts",
+    "build-index:dry": "tsx scripts/build-date-media-index.ts --dry-run",
+    "prune-index": "tsx scripts/prune-date-media-index.ts",
+    "prune-index:dry": "tsx scripts/prune-date-media-index.ts --dry-run"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.986.0",
