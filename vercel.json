@@ -2,7 +2,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api).*)",
+      "source": "/((?!api)(?!@)(?!src)(?!node_modules)(?!assets)(?!.*\\.).*)",
       "destination": "/"
     }
   ]

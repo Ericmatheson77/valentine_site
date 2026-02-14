@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, CalendarHeart, Loader2, Images, X } from "lucide-react";
+import { Heart, CalendarHeart, Loader2, Images, X, Maximize2 } from "lucide-react";
 import CountdownTimer from "./components/CountdownTimer";
 import MemoryCard, { formatMemoryDate } from "./components/MemoryCard";
 import CardBack from "./components/CardBack";
@@ -176,9 +176,10 @@ function App() {
               <ErrorCard message={error} />
             ) : todayMemory ? (
               <div className="flex flex-col items-center gap-3">
-                <MemoryCard entry={todayMemory} />
-                <ViewAllMediaButton
-                  onClick={() =>
+                <TodayMemoryCard
+                  memory={todayMemory}
+                  onExpand={() => setExpandedMemory(todayMemory)}
+                  onViewAll={() =>
                     openMediaModalForDate(
                       todayMemory.date,
                       todayMemory.media || []
@@ -293,6 +294,33 @@ function NoMemoryToday() {
   );
 }
 
+function TodayMemoryCard({
+  memory,
+  onExpand,
+  onViewAll,
+}: {
+  memory: MemoryEntry;
+  onExpand: () => void;
+  onViewAll: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <MemoryCard entry={memory} />
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={onExpand}
+          className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 text-rose-500 bg-white/70 backdrop-blur px-3 py-1.5 text-xs shadow-sm hover:bg-rose-50 transition-colors"
+        >
+          <Maximize2 className="w-4 h-4" />
+          <span>Expand</span>
+        </button>
+        <ViewAllMediaButton onClick={onViewAll} />
+      </div>
+    </div>
+  );
+}
+
 function PastMemoryCard({
   memory,
   onOpen,
@@ -344,26 +372,26 @@ function MemoryDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 min-h-0"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-sm flex flex-col items-center gap-3"
+        className="relative w-full max-w-sm flex flex-col items-center gap-3 h-[85vh] max-h-[90vh] min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-rose-400 hover:text-rose-600 transition-colors"
+          className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-rose-400 hover:text-rose-600 transition-colors shrink-0"
           aria-label="Close"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <p className="text-white/90 text-sm font-medium text-center">
+        <p className="text-white/90 text-sm font-medium text-center shrink-0">
           {formattedDate}
         </p>
 
-        <div className="w-full max-w-sm aspect-[3/4]">
+        <div className="w-full max-w-sm flex-1 min-h-0 flex flex-col overflow-hidden">
           <CardBack entry={memory} compact={false} />
         </div>
 

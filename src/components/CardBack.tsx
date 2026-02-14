@@ -19,9 +19,7 @@ export default function CardBack({ entry, compact = false }: CardBackProps) {
 
   return (
     <div
-      className={`w-full h-full bg-white rounded-2xl p-4 flex flex-col items-center ${
-        isText ? "justify-start" : "justify-center"
-      } overflow-hidden shadow-lg shadow-rose-200/40 border border-rose-100/50`}
+      className="w-full h-full bg-white rounded-2xl p-4 flex flex-col items-center justify-start overflow-y-auto overflow-x-hidden min-h-0 shadow-lg shadow-rose-200/40 border border-rose-100/50"
     >
       {isText && <TextContent text={entry.text} compact={compact} />}
       {entry.type === "photo" && (
@@ -77,7 +75,7 @@ function PhotoContent({
   const isVideo = isVideoUrl(mediaUrl);
 
   return (
-    <div className="flex flex-col items-center gap-2 w-full overflow-hidden">
+    <div className="flex flex-col items-center gap-2 w-full min-h-0">
       {/* Polaroid-style frame */}
       <div
         className={`bg-white rounded-lg shadow-lg shadow-rose-100/60 rotate-[-1deg] w-full ${
@@ -87,7 +85,7 @@ function PhotoContent({
         {isVideo ? (
           <video
             src={mediaUrl}
-            className="max-h-[320px] w-full h-auto mx-auto object-contain rounded-sm"
+            className="max-h-[280px] w-full h-auto mx-auto object-contain rounded-sm"
             controls
             playsInline
             preload="metadata"
@@ -96,7 +94,7 @@ function PhotoContent({
           <img
             src={mediaUrl}
             alt="Memory"
-            className="max-h-[320px] w-full h-auto mx-auto object-contain rounded-sm"
+            className="max-h-[280px] w-full h-auto mx-auto object-contain rounded-sm"
             draggable={false}
           />
         )}
@@ -116,10 +114,10 @@ function CaptionWithToggle({
   compact: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-   const [canToggle, setCanToggle] = useState(false);
-   const textRef = useRef<HTMLParagraphElement | null>(null);
+  const [canToggle, setCanToggle] = useState(false);
+  const textRef = useRef<HTMLParagraphElement | null>(null);
 
-  // For compact cards, always show a short, clamped preview.
+  // Compact cards (e.g. in grid): short clamped preview only.
   if (compact) {
     return (
       <p className="text-rose-500/80 text-center font-medium italic px-1 text-[10px] line-clamp-2">
@@ -127,16 +125,16 @@ function CaptionWithToggle({
       </p>
     );
   }
- 
-   useEffect(() => {
-     const el = textRef.current;
-     if (!el) return;
-     // If the text is taller than its visible box, allow toggling
-     setCanToggle(el.scrollHeight > el.clientHeight + 1);
-   }, [caption]);
+
+  // Full-size card: clamp to 3 lines with Show more; when expanded, full text (card scrolls).
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    setCanToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [caption, expanded]);
 
   return (
-    <div className="flex flex-col items-center gap-1 px-2 mt-1">
+    <div className="flex flex-col items-center gap-1 px-2 mt-1 w-full min-h-0 shrink-0">
       <p
         ref={textRef}
         className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${

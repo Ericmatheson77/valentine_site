@@ -63,10 +63,12 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
   const isVideo = isVideoUrl(currentUrl);
 
   return (
-    <div className={`w-full flex flex-col items-center ${compact ? "gap-1.5" : "gap-3"}`}>
-      {/* Media container */}
+    <div className={`w-full flex flex-col items-center min-h-0 ${compact ? "gap-1.5" : "gap-3"}`}>
+      {/* Media container: when not compact, cap height so caption fits in card */}
       <div
-        className="relative w-full aspect-[3/4] overflow-hidden rounded-xl bg-white shadow-inner"
+        className={`relative w-full overflow-hidden rounded-xl bg-white shadow-inner ${
+          compact ? "aspect-[3/4]" : "aspect-[4/3] max-h-[280px] min-h-0"
+        }`}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -175,15 +177,16 @@ function GalleryCaption({
       </p>
     );
   }
- 
+
+  // Full-size: clamp to 3 lines with Show more; when expanded, full text (card scrolls).
   useEffect(() => {
     const el = textRef.current;
     if (!el) return;
     setCanToggle(el.scrollHeight > el.clientHeight + 1);
-  }, [caption]);
+  }, [caption, expanded]);
 
   return (
-    <div className="flex flex-col items-center gap-1 px-2">
+    <div className="flex flex-col items-center gap-1 px-2 w-full min-h-0 shrink-0">
       <p
         ref={textRef}
         className={`text-rose-500/80 text-center font-medium italic text-sm whitespace-pre-line ${
