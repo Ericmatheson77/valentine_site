@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
@@ -6,7 +7,89 @@ import {
   PutCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { requireViewer, requireAdmin } from "./lib/auth";
+
+const VIEWER_COOKIE = "viewer_session";
+const ADMIN_COOKIE = "admin_session";
+
+function getSecret(): string | null {
+  return process.env.AUTH_SECRET || null;
+}
+
+function sign(payload: string): string | null {
+  const secret = getSecret();
+  if (!secret) return null;
+  return createHmac("sha256", secret).update(payload).digest("hex");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function verifySessionToken(token: string): { role: string } | null {
+  const parts = token.split("|");
+  if (parts.length !== 3) return null;
+  const [role, expStr, sig] = parts;
+  if (role !== "viewer" && role !== "admin") return null;
+  const exp = parseInt(expStr, 10);
+  if (isNaN(exp)) return null;
+  const expectedSig = sign(`${role}|${expStr}`);
+  if (expectedSig === null || !safeEqual(sig, expectedSig)) return null;
+  if (Math.floor(Date.now() / 1000) > exp) return null;
+  return { role };
+}
+
+function parseCookies(req: VercelRequest): Record<string, string> {
+  const header = req.headers.cookie || "";
+  const cookies: Record<string, string> = {};
+  for (const pair of header.split(";")) {
+    const [name, ...rest] = pair.trim().split("=");
+    if (name) cookies[name.trim()] = rest.join("=").trim();
+  }
+  return cookies;
+}
+
+function getSessionFromRequest(req: VercelRequest): { role: string } | null {
+  const cookies = parseCookies(req);
+  if (cookies[ADMIN_COOKIE]) {
+    const s = verifySessionToken(cookies[ADMIN_COOKIE]);
+    if (s && s.role === "admin") return s;
+  }
+  if (cookies[VIEWER_COOKIE]) {
+    const s = verifySessionToken(cookies[VIEWER_COOKIE]);
+    if (s && s.role === "viewer") return s;
+  }
+  return null;
+}
+
+function getAdminSessionFromRequest(req: VercelRequest): { role: string } | null {
+  const cookies = parseCookies(req);
+  const t = cookies[ADMIN_COOKIE];
+  if (t) {
+    const s = verifySessionToken(t);
+    if (s && s.role === "admin") return s;
+  }
+  return null;
+}
+
+function requireViewer(req: VercelRequest, res: VercelResponse): boolean {
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  return true;
+}
+
+function requireAdmin(req: VercelRequest, res: VercelResponse): boolean {
+  if (getAdminSessionFromRequest(req)) return true;
+  const pin = req.headers["admin-pin"];
+  if (pin && pin === process.env.ADMIN_PIN) return true;
+  res.setHeader("Cache-Control", "no-store");
+  res.status(401).json({ error: "Unauthorized" });
+  return false;
+}
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || "us-west-1",
