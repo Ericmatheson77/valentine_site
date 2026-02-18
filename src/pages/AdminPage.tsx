@@ -34,18 +34,6 @@ type ToastType = "success" | "error";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function getStoredPin(): string | null {
-  return sessionStorage.getItem("admin-pin");
-}
-
-function storePin(pin: string) {
-  sessionStorage.setItem("admin-pin", pin);
-}
-
-function clearPin() {
-  sessionStorage.removeItem("admin-pin");
-}
-
 function formatDateHeading(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("en-US", {
@@ -65,10 +53,29 @@ function deriveType(mediaCount: number): MemoryType {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [pin, setPin] = useState(getStoredPin() || "");
-  const [authed, setAuthed] = useState(!!getStoredPin());
+  const [pin, setPin] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.role === "admin") setAuthed(true);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 to-cream flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-rose-300 animate-spin" />
+      </div>
+    );
+  }
 
   if (!authed) {
     return (
@@ -87,7 +94,6 @@ export default function AdminPage() {
               body: JSON.stringify({ pin }),
             });
             if (res.ok) {
-              storePin(pin);
               setAuthed(true);
             } else {
               setAuthError("Invalid PIN. Try again.");
@@ -104,8 +110,8 @@ export default function AdminPage() {
 
   return (
     <AdminDashboard
-      onLogout={() => {
-        clearPin();
+      onLogout={async () => {
+        await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
         setAuthed(false);
         setPin("");
       }}
@@ -178,8 +184,6 @@ function PinGate({
 // ─── Admin Dashboard ────────────────────────────────────────────────────────
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
-  const storedPin = getStoredPin() || "";
-
   // State
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
@@ -216,9 +220,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/admin/photos", {
-          headers: { "admin-pin": storedPin },
-        });
+        const res = await fetch("/api/admin/photos");
         if (!res.ok) throw new Error("Failed to load photos");
         const data: PhotoWithDate[] = await res.json();
         setPhotos(data);
@@ -229,7 +231,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         setPhotosLoading(false);
       }
     })();
-  }, [storedPin, showToast]);
+  }, [showToast]);
 
   // Load all memories
   const loadMemories = useCallback(async () => {
@@ -351,10 +353,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await fetch("/api/memories", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "admin-pin": storedPin,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: selectedDate, type, text: messageText.trim(), media }),
       });
 
@@ -377,10 +376,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await fetch("/api/memories", {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "admin-pin": storedPin,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: selectedDate }),
       });
 
@@ -409,10 +405,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await fetch("/api/admin/photos/delete", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "admin-pin": storedPin,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keys }),
       });
       const data = await res.json().catch(() => ({}));
@@ -433,16 +426,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const fetchOriginalCount = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/photos?source=originals", {
-        headers: { "admin-pin": storedPin },
-      });
+      const res = await fetch("/api/admin/photos?source=originals");
       if (!res.ok) return;
       const data = await res.json();
       setOriginalCount(data.length);
     } catch {
       // ignore
     }
-  }, [storedPin]);
+  }, []);
 
   useEffect(() => {
     fetchOriginalCount();
@@ -451,9 +442,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleDeleteOriginals = async () => {
     // First fetch the list of originals to get their keys
     try {
-      const listRes = await fetch("/api/admin/photos?source=originals", {
-        headers: { "admin-pin": storedPin },
-      });
+      const listRes = await fetch("/api/admin/photos?source=originals");
       if (!listRes.ok) throw new Error("Failed to list originals");
       const originals: PhotoWithDate[] = await listRes.json();
 
@@ -477,10 +466,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         const batch = keys.slice(i, i + 1000);
         const res = await fetch("/api/admin/photos/delete", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "admin-pin": storedPin,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keys: batch }),
         });
         if (!res.ok) throw new Error("Delete batch failed");

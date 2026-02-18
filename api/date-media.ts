@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { requireViewer } from "./_lib/auth";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-west-1",
@@ -46,6 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  if (!requireViewer(req, res)) return;
 
   if (!BUCKET) {
     return res.status(500).json({ error: "S3_BUCKET_NAME not configured" });

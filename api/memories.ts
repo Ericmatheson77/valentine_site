@@ -6,6 +6,7 @@ import {
   PutCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { requireViewer, requireAdmin } from "./_lib/auth";
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || "us-west-1",
@@ -18,14 +19,11 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "valentine_memories";
 
-function checkAdminPin(req: VercelRequest): boolean {
-  const pin = req.headers["admin-pin"];
-  return !!pin && pin === process.env.ADMIN_PIN;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // --- GET: public, returns all memories ---
+  // --- GET: requires viewer or admin session ---
   if (req.method === "GET") {
+    if (!requireViewer(req, res)) return;
+
     try {
       const result = await docClient.send(
         new ScanCommand({ TableName: TABLE_NAME })
@@ -54,9 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // --- PUT: admin-only, upsert a memory ---
   if (req.method === "PUT") {
-    if (!checkAdminPin(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    if (!requireAdmin(req, res)) return;
 
     const { date, type, text, media } = req.body || {};
 
@@ -88,9 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // --- DELETE: admin-only, remove a memory by date ---
   if (req.method === "DELETE") {
-    if (!checkAdminPin(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    if (!requireAdmin(req, res)) return;
 
     const { date } = req.body || {};
 
