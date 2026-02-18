@@ -5,7 +5,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import exifr from "exifr";
-import { requireAdmin } from "../../lib/auth";
+import { requireAdmin } from "../lib/auth";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-west-1",

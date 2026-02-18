@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { S3Client, DeleteObjectsCommand } from "@aws-sdk/client-s3";
-import { requireAdmin } from "../../../lib/auth";
+import { requireAdmin } from "../../lib/auth";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-west-1",

@@ -6,7 +6,7 @@ import {
   PutCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { requireViewer, requireAdmin } from "../lib/auth";
+import { requireViewer, requireAdmin } from "./lib/auth";
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || "us-west-1",

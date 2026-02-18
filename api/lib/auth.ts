@@ -148,3 +148,8 @@ export function clearAdminCookie(res: VercelResponse): void {
     `${ADMIN_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`
   );
 }
+
+// Prevent this file from being deployed as a route (Vercel expects default export for handlers)
+export default function handler(_req: VercelRequest, res: VercelResponse) {
+  res.status(404).end();
+}

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { requireViewer } from "../lib/auth";
+import { requireViewer } from "./lib/auth";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-west-1",
