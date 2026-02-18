@@ -11,14 +11,14 @@ interface SessionPayload {
 const VIEWER_COOKIE = "viewer_session";
 const ADMIN_COOKIE = "admin_session";
 
-function getSecret(): string {
-  const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET env var is not set");
-  return s;
+function getSecret(): string | null {
+  return process.env.AUTH_SECRET || null;
 }
 
-function sign(payload: string): string {
-  return createHmac("sha256", getSecret()).update(payload).digest("hex");
+function sign(payload: string): string | null {
+  const secret = getSecret();
+  if (!secret) return null;
+  return createHmac("sha256", secret).update(payload).digest("hex");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -30,6 +30,7 @@ export function createSessionToken(role: Role, maxAgeSeconds: number): string {
   const exp = Math.floor(Date.now() / 1000) + maxAgeSeconds;
   const payload = `${role}|${exp}`;
   const sig = sign(payload);
+  if (!sig) throw new Error("AUTH_SECRET env var is not set");
   return `${payload}|${sig}`;
 }
 
@@ -44,7 +45,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
   if (isNaN(exp)) return null;
 
   const expectedSig = sign(`${role}|${expStr}`);
-  if (!safeEqual(sig, expectedSig)) return null;
+  if (expectedSig === null || !safeEqual(sig, expectedSig)) return null;
 
   if (Math.floor(Date.now() / 1000) > exp) return null;
 

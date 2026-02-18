@@ -19,6 +19,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Invalid password" });
   }
 
-  setViewerCookie(res);
-  return res.status(200).json({ ok: true });
+  try {
+    setViewerCookie(res);
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Viewer login error:", err);
+    return res.status(500).json({ error: "Server misconfigured" });
+  }
 }
