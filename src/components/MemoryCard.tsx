@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { motion } from "framer-motion";
 import type { MemoryEntry } from "../types";
 import { getToday } from "../data";
@@ -11,7 +11,7 @@ interface MemoryCardProps {
   compact?: boolean;
 }
 
-export default function MemoryCard({ entry, compact = false }: MemoryCardProps) {
+function MemoryCard({ entry, compact = false }: MemoryCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const today = getToday();
   const isFuture = entry.date > today;
@@ -63,6 +63,8 @@ export default function MemoryCard({ entry, compact = false }: MemoryCardProps) 
     </div>
   );
 }
+
+export default memo(MemoryCard);
 
 /**
  * Formats a date string to a friendly display

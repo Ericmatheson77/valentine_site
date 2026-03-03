@@ -79,11 +79,26 @@ const REGION = process.env.AWS_REGION || "us-west-1";
 const PROCESSED_PREFIX = process.env.S3_PROCESSED_PREFIX ?? "processed/";
 const INDEX_KEY = `${PROCESSED_PREFIX.replace(/\/?$/, "/")}date-media-index.json`;
 
+// Simple in-memory cache for the parsed index while the function instance is warm.
+let cachedIndex:
+  | {
+      data: Record<string, string[]>;
+      lastLoaded: number;
+    }
+  | null = null;
+
+const INDEX_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Load the precomputed date → URLs index from S3.
  * Shape: { "YYYY-MM-DD": ["https://...", ...], ... }
  */
 async function loadDateMediaIndex(): Promise<Record<string, string[]>> {
+  const now = Date.now();
+  if (cachedIndex && now - cachedIndex.lastLoaded < INDEX_TTL_MS) {
+    return cachedIndex.data;
+  }
+
   const res = await s3.send(
     new GetObjectCommand({
       Bucket: BUCKET,
@@ -104,7 +119,13 @@ async function loadDateMediaIndex(): Promise<Record<string, string[]>> {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Invalid index JSON");
   }
-  return parsed as Record<string, string[]>;
+
+  cachedIndex = {
+    data: parsed as Record<string, string[]>,
+    lastLoaded: now,
+  };
+
+  return cachedIndex.data;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -127,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const index = await loadDateMediaIndex();
     const urls = index[date] ?? [];
 
-    res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=60");
+    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=120");
     return res.status(200).json({ date, urls });
   } catch (error) {
     console.error("date-media error:", error);

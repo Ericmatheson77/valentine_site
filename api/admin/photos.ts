@@ -111,6 +111,16 @@ function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Simple in-memory cache for the processed index while the function instance is warm.
+let cachedProcessedIndex:
+  | {
+      data: Record<string, string[]>;
+      lastLoaded: number;
+    }
+  | null = null;
+
+const INDEX_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Read the first 64 KB of an S3 object and try to extract the EXIF date.
  */
@@ -155,6 +165,11 @@ async function getExifDate(key: string): Promise<string | null> {
  * Shape: { "YYYY-MM-DD": ["https://bucket.s3.region.amazonaws.com/processed/...", ...], ... }
  */
 async function loadProcessedIndex(): Promise<Record<string, string[]>> {
+  const now = Date.now();
+  if (cachedProcessedIndex && now - cachedProcessedIndex.lastLoaded < INDEX_TTL_MS) {
+    return cachedProcessedIndex.data;
+  }
+
   const res = await s3.send(
     new GetObjectCommand({
       Bucket: BUCKET,
@@ -178,7 +193,12 @@ async function loadProcessedIndex(): Promise<Record<string, string[]>> {
     throw new Error("Invalid index JSON");
   }
 
-  return parsed as Record<string, string[]>;
+  cachedProcessedIndex = {
+    data: parsed as Record<string, string[]>,
+    lastLoaded: now,
+  };
+
+  return cachedProcessedIndex.data;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -196,13 +216,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ?source=all returns everything
   // default: only processed/ prefix
   const source = (req.query.source as string) || "processed";
+  const page = req.query.page ? parseInt(req.query.page as string, 10) || 1 : 1;
+  const pageSize =
+    req.query.pageSize && !Array.isArray(req.query.pageSize)
+      ? Math.min(Math.max(parseInt(req.query.pageSize, 10) || 100, 20), 500)
+      : 100;
 
   try {
     // Fast path for processed media: use the precomputed date-media index if available.
     if (source === "processed") {
       try {
         const index = await loadProcessedIndex();
-        const photos: {
+        const allPhotos: {
           key: string;
           url: string;
           date: string | null;
@@ -219,7 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const key = decodeURIComponent(path);
               const { type: mediaType, webDisplayable } = classifyMedia(key);
 
-              photos.push({
+              allPhotos.push({
                 key,
                 url,
                 date,
@@ -234,15 +259,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Sort: dated first (by date), then undated (by key)
-        photos.sort((a, b) => {
+        allPhotos.sort((a, b) => {
           if (a.date && b.date) return a.date.localeCompare(b.date);
           if (a.date && !b.date) return -1;
           if (!a.date && b.date) return 1;
           return a.key.localeCompare(b.key);
         });
 
-        res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=60");
-        return res.status(200).json(photos);
+        const total = allPhotos.length;
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const items = allPhotos.slice(start, end);
+        const hasMore = end < total;
+
+        res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=120");
+        return res.status(200).json({
+          items,
+          total,
+          page,
+          pageSize,
+          hasMore,
+        });
       } catch (e) {
         // If the index is missing or invalid, fall back to the S3+EXIF scan below.
         console.warn("Failed to load processed index; falling back to S3 scan:", e);
@@ -315,7 +352,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return a.key.localeCompare(b.key);
     });
 
-    res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=60");
+    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=120");
     return res.status(200).json(photos);
   } catch (error) {
     console.error("S3 list/EXIF error:", error);

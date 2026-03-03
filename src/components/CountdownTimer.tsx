@@ -37,8 +37,8 @@ export default function CountdownTimer({
   targetDate,
   label = "Forever",
 }: CountdownTimerProps) {
-  // May 29th 11:00 AM MDT = 17:00 UTC (MDT is UTC-6)
-  const target = new Date(`${targetDate}T17:00:00Z`);
+  // May 29th 2:00 PM MDT = 20:00 UTC (MDT is UTC-6)
+  const target = new Date(`${targetDate}T20:00:00Z`);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft(target));
 
   // Local calendar day for controlling when to show the banner

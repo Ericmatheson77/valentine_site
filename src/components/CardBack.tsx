@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { MemoryEntry } from "../types";
 import Gallery from "./Gallery";
 import { Quote } from "lucide-react";
@@ -14,7 +14,7 @@ function isVideoUrl(url: string): boolean {
   return lower.endsWith(".mp4") || lower.endsWith(".webm");
 }
 
-export default function CardBack({ entry, compact = false }: CardBackProps) {
+function CardBack({ entry, compact = false }: CardBackProps) {
   const isText = entry.type === "text";
 
   return (
@@ -96,6 +96,7 @@ function PhotoContent({
             alt="Memory"
             className="max-h-[280px] w-full h-auto mx-auto object-contain rounded-sm"
             draggable={false}
+            loading="lazy"
           />
         )}
       </div>
@@ -105,6 +106,8 @@ function PhotoContent({
     </div>
   );
 }
+
+export default memo(CardBack);
 
 function CaptionWithToggle({
   caption,

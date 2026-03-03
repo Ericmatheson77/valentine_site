@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, memo } from "react";
 import {
   Lock,
   Loader2,
@@ -13,7 +13,6 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ChevronUp,
   X,
 } from "lucide-react";
@@ -191,7 +190,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [photos, setPhotos] = useState<PhotoWithDate[]>([]);
-  const [photosLoading, setPhotosLoading] = useState(true);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosPage, setPhotosPage] = useState(1);
+  const [photosPageSize] = useState(150);
+  const [photosTotal, setPhotosTotal] = useState<number | null>(null);
+  const [photosHasMore, setPhotosHasMore] = useState(false);
+  const [photosInitialized, setPhotosInitialized] = useState(false);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [memoriesLoading, setMemoriesLoading] = useState(true);
 
@@ -203,35 +207,63 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [deleteFromS3Loading, setDeleteFromS3Loading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDate, setPreviewDate] = useState<string | null>(null);
-  const [memoriesExpanded, setMemoriesExpanded] = useState(true);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(
     null
   );
 
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composeSectionRef = useRef<HTMLElement>(null);
+  const photoListEndRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = useCallback((msg: string, type: ToastType) => {
     setToast({ msg, type });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+    }
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // Load photos from S3 (API returns EXIF dates server-side)
-  useEffect(() => {
-    (async () => {
+  // Load a single page of photos from S3 using the processed index.
+  const loadPhotosPage = useCallback(
+    async (page: number) => {
+      if (photosLoading) return;
+      setPhotosLoading(true);
       try {
-        const res = await fetch("/api/admin/photos");
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: String(photosPageSize),
+        });
+        const res = await fetch(`/api/admin/photos?${params.toString()}`);
         if (!res.ok) throw new Error("Failed to load photos");
-        const data: PhotoWithDate[] = await res.json();
-        setPhotos(data);
+        const data: {
+          items: PhotoWithDate[];
+          total: number;
+          page: number;
+          pageSize: number;
+          hasMore: boolean;
+        } = await res.json();
+
+        setPhotos((prev) =>
+          data.page === 1 ? data.items : [...prev, ...data.items]
+        );
+        setPhotosTotal(data.total);
+        setPhotosHasMore(data.hasMore);
+        setPhotosPage(data.page);
+        setPhotosInitialized(true);
       } catch (err) {
         console.error(err);
         showToast("Failed to load photos from S3", "error");
       } finally {
         setPhotosLoading(false);
       }
-    })();
-  }, [showToast]);
+    },
+    [photosLoading, photosPageSize, showToast]
+  );
 
   // Load all memories
   const loadMemories = useCallback(async () => {
@@ -263,6 +295,21 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setSelectedUrls(new Set());
     }
   }, [selectedDate, existingEntry?.date]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set of dates that have a curated memory (for calendar highlight)
+  const memoryDates = useMemo(
+    () => new Set(memories.map((m) => m.date)),
+    [memories]
+  );
+
+  // Keep calendar month in sync with selected date when changed via date picker
+  useEffect(() => {
+    const [y, m] = selectedDate.split("-").map(Number);
+    setCalendarMonth((prev) => {
+      if (prev.year === y && prev.month === m - 1) return prev;
+      return { year: y, month: m - 1 };
+    });
+  }, [selectedDate]);
 
   // All navigable dates for preview (sorted saved dates + current selectedDate)
   const previewDates = useMemo(() => {
@@ -439,6 +486,30 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     fetchOriginalCount();
   }, [fetchOriginalCount]);
 
+  // Infinite scroll for photo library
+  useEffect(() => {
+    if (!photosInitialized || !photosHasMore) return;
+    const node = photoListEndRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && !photosLoading && photosHasMore) {
+          void loadPhotosPage(photosPage + 1);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [photosInitialized, photosHasMore, photosLoading, photosPage, loadPhotosPage]);
+
   const handleDeleteOriginals = async () => {
     // First fetch the list of originals to get their keys
     try {
@@ -485,16 +556,33 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-cream">
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-rose-100 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="font-display text-lg text-rose-600 font-semibold">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <h1 className="font-display text-lg text-rose-600 font-semibold shrink-0">
             Memory Curator
           </h1>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 text-sm text-rose-400 hover:text-rose-600 transition-colors"
-          >
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => composeSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors"
+            >
+              <Save className="w-3.5 h-3.5" /> To editor
+            </button>
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors"
+              aria-label="Jump to top"
+            >
+              <ChevronUp className="w-3.5 h-3.5" /> Top
+            </button>
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 text-sm text-rose-400 hover:text-rose-600 transition-colors"
+            >
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -604,11 +692,31 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               </button>
             ))}
             <span className="ml-auto text-xs text-rose-300 self-center">
-              {filteredPhotos.length} of {photos.length} photos
+              {filteredPhotos.length} of{" "}
+              {photosTotal !== null ? photosTotal : photos.length} photos
             </span>
           </div>
 
-          {photosLoading ? (
+          {!photosInitialized ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <p className="text-sm text-rose-400 text-center max-w-xs">
+                Load the photo library when you’re ready to curate memories. This
+                keeps the admin fast on slower connections.
+              </p>
+              <button
+                type="button"
+                onClick={() => loadPhotosPage(1)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition-colors"
+              >
+                {photosLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ImageIcon className="w-4 h-4" />
+                )}
+                {photosLoading ? "Loading photos..." : "Load photo library"}
+              </button>
+            </div>
+          ) : photosLoading && photos.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 text-rose-300 animate-spin" />
               <span className="ml-2 text-sm text-rose-400">
@@ -626,44 +734,63 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     : "No photos found"}
             </p>
           ) : (
-            <div className="space-y-6">
-              {/* Photos matching selected date */}
-              {matchingPhotos.length > 0 && (
-                <PhotoGroup
-                  label={`Photos from ${formatDateHeading(selectedDate)}`}
-                  highlight
-                  photos={matchingPhotos}
-                  selectedUrls={selectedUrls}
-                  onToggle={togglePhoto}
-                />
-              )}
+            <>
+              <div className="space-y-6">
+                {/* Photos matching selected date */}
+                {matchingPhotos.length > 0 && (
+                  <PhotoGroup
+                    label={`Photos from ${formatDateHeading(selectedDate)}`}
+                    highlight
+                    photos={matchingPhotos}
+                    selectedUrls={selectedUrls}
+                    onToggle={togglePhoto}
+                  />
+                )}
 
-              {/* Photos from other dates */}
-              {otherDates.map((date) => (
-                <PhotoGroup
-                  key={date}
-                  label={formatDateHeading(date)}
-                  photos={photos.filter((p) => p.date === date)}
-                  selectedUrls={selectedUrls}
-                  onToggle={togglePhoto}
-                />
-              ))}
+                {/* Photos from other dates */}
+                {otherDates.map((date) => (
+                  <PhotoGroup
+                    key={date}
+                    label={formatDateHeading(date)}
+                    photos={photos.filter((p) => p.date === date)}
+                    selectedUrls={selectedUrls}
+                    onToggle={togglePhoto}
+                  />
+                ))}
 
-              {/* Undated photos */}
-              {undatedPhotos.length > 0 && (
-                <PhotoGroup
-                  label="Undated"
-                  photos={undatedPhotos}
-                  selectedUrls={selectedUrls}
-                  onToggle={togglePhoto}
-                />
+                {/* Undated photos */}
+                {undatedPhotos.length > 0 && (
+                  <PhotoGroup
+                    label="Undated"
+                    photos={undatedPhotos}
+                    selectedUrls={selectedUrls}
+                    onToggle={togglePhoto}
+                  />
+                )}
+              </div>
+
+              <div ref={photoListEndRef} className="h-8" />
+
+              {photosHasMore && !photosLoading && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => loadPhotosPage(photosPage + 1)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-rose-200 text-rose-500 text-xs hover:bg-rose-50 transition-colors"
+                  >
+                    Load more photos
+                  </button>
+                </div>
               )}
-            </div>
+            </>
           )}
         </section>
 
         {/* ── C) Compose Form ───────────────────────────── */}
-        <section className="bg-white rounded-2xl shadow-sm border border-rose-100 p-5">
+        <section
+          ref={composeSectionRef}
+          className="bg-white rounded-2xl shadow-sm border border-rose-100 p-5"
+        >
           <h3 className="text-sm font-medium text-rose-500 mb-3">
             Compose Memory for{" "}
             <span className="font-semibold">
@@ -803,57 +930,36 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </p>
         </section>
 
-        {/* ── Existing Entries Overview ──────────────────── */}
+        {/* ── Memory calendar (highlights dates with a memory) ──────────────────── */}
         <section>
-          <button
-            onClick={() => setMemoriesExpanded(!memoriesExpanded)}
-            className="flex items-center justify-between w-full text-left mb-3 group"
-          >
-            <h3 className="text-sm font-medium text-rose-500">
-              All Curated Memories ({memories.length})
-            </h3>
-            {memories.length > 0 && (
-              <div className="text-rose-400 group-hover:text-rose-600 transition-colors">
-                {memoriesExpanded ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </div>
-            )}
-          </button>
-          {memoriesExpanded && (
-            <>
-              {memories.length === 0 ? (
-                <p className="text-xs text-rose-300">No memories yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {memories.map((m) => (
-                    <button
-                      key={m.date}
-                      onClick={() => setSelectedDate(m.date)}
-                      className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                        m.date === selectedDate
-                          ? "bg-rose-50 border-rose-300"
-                          : "bg-white border-rose-100 hover:border-rose-200"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-rose-600">
-                          {formatDateHeading(m.date)}
-                        </span>
-                        <span className="text-xs text-rose-400 bg-rose-50 px-2 py-0.5 rounded-full">
-                          {m.type}
-                        </span>
-                      </div>
-                      <p className="text-xs text-rose-400 mt-1 line-clamp-1 italic">
-                        "{m.text}"
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+          <h3 className="text-sm font-medium text-rose-500 mb-3">
+            <CalendarDays className="w-4 h-4 inline-block mr-1.5 align-middle" />
+            Memory calendar
+          </h3>
+          {memoriesLoading ? (
+            <p className="text-xs text-rose-300">Loading...</p>
+          ) : (
+            <MemoryCalendar
+              year={calendarMonth.year}
+              month={calendarMonth.month}
+              memoryDates={memoryDates}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              onPrevMonth={() =>
+                setCalendarMonth((prev) => {
+                  if (prev.month === 0)
+                    return { year: prev.year - 1, month: 11 };
+                  return { year: prev.year, month: prev.month - 1 };
+                })
+              }
+              onNextMonth={() =>
+                setCalendarMonth((prev) => {
+                  if (prev.month === 11)
+                    return { year: prev.year + 1, month: 0 };
+                  return { year: prev.year, month: prev.month + 1 };
+                })
+              }
+            />
           )}
         </section>
 
@@ -1007,9 +1113,105 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+// ─── Memory Calendar ────────────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function MemoryCalendar({
+  year,
+  month,
+  memoryDates,
+  selectedDate,
+  onSelectDate,
+  onPrevMonth,
+  onNextMonth,
+}: {
+  year: number;
+  month: number;
+  memoryDates: Set<string>;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const startOffset = firstDay.getDay();
+
+  const monthLabel = firstDay.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= lastDay; d++) cells.push(d);
+  const totalCells = 42;
+  while (cells.length < totalCells) cells.push(null);
+
+  return (
+    <div className="bg-white rounded-2xl border border-rose-100 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={onPrevMonth}
+          className="w-8 h-8 rounded-lg border border-rose-200 flex items-center justify-center text-rose-400 hover:bg-rose-50 transition-colors"
+          aria-label="Previous month"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-sm font-medium text-rose-600">{monthLabel}</span>
+        <button
+          type="button"
+          onClick={onNextMonth}
+          className="w-8 h-8 rounded-lg border border-rose-200 flex items-center justify-center text-rose-400 hover:bg-rose-50 transition-colors"
+          aria-label="Next month"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {WEEKDAY_LABELS.map((label) => (
+          <div
+            key={label}
+            className="text-[10px] font-medium text-rose-400 py-1"
+          >
+            {label}
+          </div>
+        ))}
+        {cells.map((day, i) => {
+          if (day === null) {
+            return <div key={`e-${i}`} className="aspect-square" />;
+          }
+          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const hasMemory = memoryDates.has(dateStr);
+          const isSelected = dateStr === selectedDate;
+          return (
+            <button
+              key={dateStr}
+              type="button"
+              onClick={() => onSelectDate(dateStr)}
+              className={`aspect-square rounded-lg text-xs font-medium transition-colors ${
+                isSelected
+                  ? "bg-rose-500 text-white ring-2 ring-rose-400 ring-offset-1"
+                  : hasMemory
+                    ? "bg-rose-100 text-rose-600 hover:bg-rose-200"
+                    : "text-rose-400 hover:bg-rose-50"
+              }`}
+              title={hasMemory ? `${dateStr} – has memory` : `${dateStr} – no memory`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Photo Group ────────────────────────────────────────────────────────────
 
-function PhotoGroup({
+const PhotoGroup = memo(function PhotoGroup({
   label,
   photos,
   selectedUrls,
@@ -1091,4 +1293,4 @@ function PhotoGroup({
       </div>
     </div>
   );
-}
+});

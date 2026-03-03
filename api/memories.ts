@@ -109,7 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const result = await docClient.send(
-        new ScanCommand({ TableName: TABLE_NAME })
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          ProjectionExpression: "date_id, #t, #tx, media",
+          ExpressionAttributeNames: {
+            "#t": "type",
+            "#tx": "text",
+          },
+        })
       );
 
       const memories = (result.Items || []).map((item) => ({
@@ -123,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       res.setHeader(
         "Cache-Control",
-        "s-maxage=60, stale-while-revalidate=30"
+        "s-maxage=300, stale-while-revalidate=120"
       );
 
       return res.status(200).json(memories);

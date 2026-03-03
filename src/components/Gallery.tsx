@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -16,7 +16,7 @@ function isVideoUrl(url: string): boolean {
   return lower.endsWith(".mp4") || lower.endsWith(".webm");
 }
 
-export default function Gallery({ images, caption, compact = false }: GalleryProps) {
+function Gallery({ images, caption, compact = false }: GalleryProps) {
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
   const touchStartX = useRef(0);
@@ -97,6 +97,7 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
                 alt={`Memory media ${current + 1}`}
                 className="max-h-full max-w-full w-auto h-auto object-contain"
                 draggable={false}
+                loading="lazy"
               />
             )}
           </motion.div>
@@ -158,6 +159,8 @@ export default function Gallery({ images, caption, compact = false }: GalleryPro
     </div>
   );
 }
+
+export default memo(Gallery);
 
 function GalleryCaption({
   caption,
